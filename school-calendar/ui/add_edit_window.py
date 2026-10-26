@@ -28,39 +28,47 @@ class AddEditWindow(QDialog):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("새 일정 등록")
-        self.resize(520, 460)
+        self.resize(520, 560)
 
         self.schedule_id = None
+        self.refresh_model = None
 
         layout = QVBoxLayout(self)
 
         layout.addWidget(QLabel("제목"))
 
         self.title_input = QLineEdit()
+        layout.addWidget(self.title_input)
 
         layout.addWidget(QLabel("날짜"))
 
         self.date_input = QLineEdit()
+        layout.addWidget(self.date_input)
 
         layout.addWidget(QLabel("시간"))
 
         self.time_input = QLineEdit()
+        layout.addWidget(self.time_input)
 
         layout.addWidget(QLabel("유형"))
 
         self.type_input = QComboBox()
+        layout.addWidget(self.type_input)
 
         layout.addWidget(QLabel("알림 시점"))
 
         self.alert_input = QComboBox()
+        layout.addWidget(self.alert_input)
 
         layout.addWidget(QLabel("반복 여부"))
 
         self.repeat_input = QComboBox()
+        layout.addWidget(self.repeat_input)
 
         layout.addWidget(QLabel("설명"))
 
         self.description_input = QLineEdit()
+        layout.addWidget(self.description_input)
 
         button_layout = QHBoxLayout()
         self.save_button = QPushButton("저장")
