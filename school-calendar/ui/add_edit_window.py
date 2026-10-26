@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QMessageBox,
     QHBoxLayout,
+    QComboBox,
 )
 
 from database import create_schedule, update_schedule, get_schedule, delete_schedule
@@ -47,15 +48,15 @@ class AddEditWindow(QDialog):
 
         layout.addWidget(QLabel("유형"))
 
-        self.type_input = QLineEdit()
+        self.type_input = QComboBox()
 
         layout.addWidget(QLabel("알림 시점"))
 
-        self.alert_input = QLineEdit()
+        self.alert_input = QComboBox()
 
         layout.addWidget(QLabel("반복 여부"))
 
-        self.repeat_input = QLineEdit()
+        self.repeat_input = QComboBox()
 
         layout.addWidget(QLabel("설명"))
 
@@ -76,13 +77,22 @@ class AddEditWindow(QDialog):
         self.setup_fields()
 
     def setup_fields(self):
-        pass
+        self.type_input.addItems(DEFAULT_TYPE)
+        self.alert_input.addItems(DEFAULT_ALERT)
+        self.repeat_input.addItems(DEFAULT_REPEAT)
+        self.time_input.setPlaceholderText("HH:MM (비우면 00:00)")
+        self.date_input.setPlaceholderText("YYYY-MM-DD")
+        self.description_input.setPlaceholderText("선택 사항")
+        self.delete_button.clicked.connect(self.delete_schedule)
+        self.delete_button.hide()
 
     def set_model(self, model):
         self.refresh_model = model
 
     def open_for_create(self):
         self.clear_inputs()
+        self.schedule_id = None
+        self.delete_button.hide()
         self.title_input.setFocus()
         self.setWindowTitle("새 일정 등록")
 
@@ -97,11 +107,14 @@ class AddEditWindow(QDialog):
         self.title_input.setText(schedule.get("title", ""))
         self.date_input.setText(schedule.get("date", ""))
         self.time_input.setText(schedule.get("time", ""))
-        self.type_input.setText(schedule.get("type", ""))
-        self.alert_input.setText(schedule.get("alert_time", ""))
-        self.repeat_input.setText(schedule.get("repeat_type", ""))
+        self.alert_input.setCurrentText(schedule.get("alert_time", "none"))
+        self.repeat_input.setCurrentText(schedule.get("repeat_type", "none"))
+        if schedule.get("type") not in DEFAULT_TYPE:
+            self.type_input.addItem(schedule.get("type"))
+        self.type_input.setCurrentText(schedule.get("type", "기타"))
         self.description_input.setText(schedule.get("description", ""))
         self.setWindowTitle("일정 수정")
+        self.delete_button.show()
 
         return True
 
@@ -109,9 +122,9 @@ class AddEditWindow(QDialog):
         self.title_input.clear()
         self.date_input.clear()
         self.time_input.clear()
-        self.type_input.clear()
-        self.alert_input.clear()
-        self.repeat_input.clear()
+        self.type_input.setCurrentIndex(DEFAULT_TYPE.index("기타"))
+        self.alert_input.setCurrentIndex(DEFAULT_ALERT.index("none"))
+        self.repeat_input.setCurrentIndex(DEFAULT_REPEAT.index("none"))
         self.description_input.clear()
 
     def save(self):
@@ -119,17 +132,17 @@ class AddEditWindow(QDialog):
             validate_required_string(self.title_input.text().strip(), "제목")
             validate_date(self.date_input.text().strip())
             validate_time(self.time_input.text().strip())
-            validate_required_string(self.type_input.text().strip(), "유형")
-            validate_alert_value(self.alert_input.text().strip())
-            validate_repeat_value(self.repeat_input.text().strip())
+            validate_required_string(self.type_input.currentText().strip(), "유형")
+            validate_alert_value(self.alert_input.currentText().strip())
+            validate_repeat_value(self.repeat_input.currentText().strip())
 
             data = {
                 "title": self.title_input.text().strip(),
                 "date": self.date_input.text().strip(),
-                "time": self.time_input.text().strip(),
-                "type": self.type_input.text().strip(),
-                "alert_time": self.alert_input.text().strip(),
-                "repeat_type": self.repeat_input.text().strip(),
+                "time": self.time_input.text().strip() or "00:00",
+                "type": self.type_input.currentText(),
+                "alert_time": self.alert_input.currentText(),
+                "repeat_type": self.repeat_input.currentText(),
                 "description": self.description_input.text().strip(),
             }
 
@@ -139,7 +152,8 @@ class AddEditWindow(QDialog):
                 update_schedule(self.schedule_id, data)
                 schedule_id = self.schedule_id
 
-            self.refresh_model({"id": schedule_id})
+            if self.refresh_model:
+                self.refresh_model({"id": schedule_id})
             self.accept()
 
         except ValueError as exc:
@@ -163,5 +177,6 @@ class AddEditWindow(QDialog):
             from database import delete_schedule
 
             delete_schedule(self.schedule_id)
-            self.refresh_model({"id": self.schedule_id})
+            if self.refresh_model:
+                self.refresh_model({"id": self.schedule_id})
             self.reject()
