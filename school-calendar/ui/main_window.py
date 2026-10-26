@@ -2,8 +2,8 @@ from pathlib import Path
 
 from datetime import date as date_util, timedelta
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QMessageBox
+from PyQt5.QtCore import QDate, Qt
+from PyQt5.QtWidgets import QApplication, QCalendarWidget, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QMessageBox
 
 from database import (
     init_db,
@@ -54,6 +54,10 @@ class MainWindow(QMainWindow):
         self.date_input = QLineEdit()
         self.date_input.setPlaceholderText("YYYY-MM-DD")
 
+        self.calendar = QCalendarWidget()
+        self.calendar.setGridVisible(True)
+        self.calendar.selectionChanged.connect(self.select_calendar_date)
+
         self.search_label = QLabel("제목 검색:")
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("제목 검색")
@@ -86,14 +90,21 @@ class MainWindow(QMainWindow):
         list_layout.addWidget(self.list_widget)
 
         layout.addLayout(header)
+        layout.addWidget(self.calendar)
         layout.addLayout(list_layout)
 
         self.models = _get_models()
         self.list_widget.itemDoubleClicked.connect(self.open_edit_window)
-
-    def select_today(self):
         self.date_input.setText(date_util.today().strftime("%Y-%m-%d"))
         self.refresh_list()
+
+    def select_calendar_date(self):
+        selected_date = self.calendar.selectedDate().toString("yyyy-MM-dd")
+        self.date_input.setText(selected_date)
+        self.refresh_list()
+
+    def select_today(self):
+        self.calendar.setSelectedDate(QDate.currentDate())
 
     def select_this_week(self):
         start = date_util.today() - timedelta(days=date_util.today().weekday())
@@ -170,6 +181,7 @@ class MainWindow(QMainWindow):
         self.add_window = AddEditWindow()
         self.add_window.set_model(self.refresh_model)
         self.add_window.open_for_create()
+        self.add_window.date_input.setText(self.calendar.selectedDate().toString("yyyy-MM-dd"))
         self.add_window.finished.connect(self.refresh_list)
         self.add_window.show()
 
