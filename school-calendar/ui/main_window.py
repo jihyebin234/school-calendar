@@ -2,7 +2,8 @@ from pathlib import Path
 
 from datetime import date as date_util, timedelta
 
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget, QLineEdit, QMessageBox
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem, QLineEdit, QMessageBox
 
 from database import (
     init_db,
@@ -12,7 +13,9 @@ from database import (
     update_schedule,
     delete_schedule,
     get_schedule,
+    get_schedules_by_title,
 )
+from utils.validator import validate_date
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -26,6 +29,8 @@ def _get_models():
         "update_schedule": update_schedule,
         "delete_schedule": delete_schedule,
         "get_schedule": get_schedule,
+        "get_schedules_by_title": get_schedules_by_title,
+        "validate_date": validate_date,
     }
 
 
@@ -84,6 +89,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(list_layout)
 
         self.models = _get_models()
+        self.list_widget.itemDoubleClicked.connect(self.open_edit_window)
 
     def select_today(self):
         self.date_input.setText(date_util.today().strftime("%Y-%m-%d"))
@@ -97,15 +103,15 @@ class MainWindow(QMainWindow):
 
     def refresh_list(self):
         try:
-            validate_date = self.date_input.text().strip()
+            date_query = self.date_input.text().strip()
             title = self.search_input.text().strip()
 
-            if not validate_date:
+            if not date_query:
                 self.show_message("날짜를 입력하거나 오늘/이번 주를 선택하세요.", "경고")
                 return
 
-            if " ~ " in validate_date:
-                start_text, end_text = validate_date.split(" ~ ", 1)
+            if " ~ " in date_query:
+                start_text, end_text = date_query.split(" ~ ", 1)
                 start_text = start_text.strip()
                 end_text = end_text.strip()
                 if start_text and end_text:
@@ -115,13 +121,19 @@ class MainWindow(QMainWindow):
                     except ValueError as exc:
                         self.show_message(str(exc), "경고")
                         return
+                if start_text > end_text:
+                    self.show_message("시작 날짜는 종료 날짜보다 늦을 수 없습니다.", "경고")
+                    return
             else:
-                self.models["validate_date"](validate_date)
+                self.models["validate_date"](date_query)
 
             if title:
                 schedules = self.models["get_schedules_by_title"](title)
             else:
-                schedules = self.models["get_schedules_by_range"](validate_date, validate_date)
+                if " ~ " in date_query:
+                    schedules = self.models["get_schedules_by_range"](start_text, end_text)
+                else:
+                    schedules = self.models["get_schedules_by_range"](date_query, date_query)
 
             self.list_widget.clear()
             if not schedules:
@@ -157,11 +169,24 @@ class MainWindow(QMainWindow):
 
         self.add_window = AddEditWindow()
         self.add_window.set_model(self.refresh_model)
+        self.add_window.open_for_create()
         self.add_window.finished.connect(self.refresh_list)
         self.add_window.show()
 
     def refresh_model(self, model):
-        pass
+        self.refresh_list()
+
+    def open_edit_window(self, item):
+        schedule_id = item.data(Qt.ItemDataRole.UserRole)
+        if schedule_id is None:
+            return
+        from ui.add_edit_window import AddEditWindow
+
+        self.add_window = AddEditWindow()
+        self.add_window.set_model(self.refresh_model)
+        if self.add_window.open_for_edit(schedule_id):
+            self.add_window.finished.connect(self.refresh_list)
+            self.add_window.show()
 
     def show_message(self, message, title="경고"):
         QMessageBox.warning(self, title, message)
