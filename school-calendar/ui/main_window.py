@@ -4,9 +4,9 @@ from datetime import date as date_util, timedelta
 from PyQt5.QtCore import QDate, Qt
 from PyQt5.QtWidgets import (
     QApplication, QCalendarWidget, QFrame, QHBoxLayout, QLabel, QLineEdit,
-    QMainWindow, QMessageBox, QPushButton, QScrollArea, QSizePolicy,
-    QVBoxLayout, QWidget,
+    QMainWindow, QMessageBox, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
+from PyQt5.QtGui import QPalette, QColor
 
 from database import (
     init_db, create_schedule, get_schedules_by_date, get_schedules_by_range,
@@ -101,16 +101,19 @@ class MainWindow(QMainWindow):
             QLabel#sideHeading { color: #696963; font-size: 11px; font-weight: 700; }
             QLabel#pageTitle { color: #202020; font-size: 25px; font-weight: 700; }
             QLabel#subtle { color: #85857e; font-size: 12px; }
-            QLineEdit { background: white; border: 1px solid #e2e2de; border-radius: 6px; padding: 8px 9px; }
+            QLineEdit { color: #242424; background: #ffffff; border: 1px solid #e2e2de; border-radius: 6px; padding: 8px 9px; }
             QLineEdit:focus { border-color: #a7a79f; }
-            QPushButton { background: white; border: 1px solid #e2e2de; border-radius: 6px; padding: 8px 11px; }
-            QPushButton:hover { background: #f3f3f1; }
+            QPushButton { color: #292929; background: #ffffff; border: 1px solid #e2e2de; border-radius: 6px; padding: 8px 11px; }
+            QPushButton:hover { color: #202020; background: #f3f3f1; }
             QPushButton#primary { color: white; background: #2383e2; border-color: #2383e2; font-weight: 600; }
             QPushButton#primary:hover { background: #176fc4; }
-            QCalendarWidget QWidget { background: #f7f7f5; }
+            QCalendarWidget QWidget { color: #292929; background: #f7f7f5; }
             QCalendarWidget QToolButton { color: #292929; background: transparent; border: 0; padding: 5px; }
             QCalendarWidget QToolButton:hover { background: #eaeae7; }
-            QCalendarWidget QAbstractItemView { selection-background-color: #2383e2; selection-color: white; }
+            QCalendarWidget QAbstractItemView { color: #292929; background: #f7f7f5; selection-background-color: #2383e2; selection-color: #ffffff; }
+            QCalendarWidget QTableView { color: #292929; background: #f7f7f5; }
+            QScrollArea { background: #ffffff; }
+            QWidget#agendaContent { background: #ffffff; }
             QFrame#scheduleCard { background: white; border: 1px solid #e9e9e6; border-radius: 9px; }
             QFrame#scheduleCard:hover { background: #fafaf9; border-color: #d8d8d3; }
             QLabel#scheduleTime { color: #777770; font-size: 12px; }
@@ -140,6 +143,14 @@ class MainWindow(QMainWindow):
         self.calendar.setGridVisible(False)
         self.calendar.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
         self.calendar.setMaximumHeight(245)
+        calendar_palette = self.calendar.palette()
+        for role in (QPalette.WindowText, QPalette.Text, QPalette.ButtonText):
+            calendar_palette.setColor(role, QColor("#292929"))
+        calendar_palette.setColor(QPalette.Window, QColor("#f7f7f5"))
+        calendar_palette.setColor(QPalette.Base, QColor("#f7f7f5"))
+        calendar_palette.setColor(QPalette.Highlight, QColor("#2383e2"))
+        calendar_palette.setColor(QPalette.HighlightedText, QColor("#ffffff"))
+        self.calendar.setPalette(calendar_palette)
         self.calendar.selectionChanged.connect(self.select_calendar_date)
         side.addWidget(self.calendar)
 
@@ -196,8 +207,15 @@ class MainWindow(QMainWindow):
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.NoFrame)
-        self.scroll.setStyleSheet("QScrollArea { background: transparent; }")
         self.list_container = QWidget()
+        self.list_container.setObjectName("agendaContent")
+        agenda_palette = self.list_container.palette()
+        agenda_palette.setColor(QPalette.Window, QColor("#ffffff"))
+        agenda_palette.setColor(QPalette.WindowText, QColor("#242424"))
+        self.list_container.setPalette(agenda_palette)
+        self.list_container.setAutoFillBackground(True)
+        self.scroll.viewport().setPalette(agenda_palette)
+        self.scroll.viewport().setAutoFillBackground(True)
         self.list_layout = QVBoxLayout(self.list_container)
         self.list_layout.setContentsMargins(1, 4, 8, 4)
         self.list_layout.setSpacing(9)
