@@ -1,11 +1,10 @@
-from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent
+from database import init_db
+from ui.main_window import main as run_ui
 
 
 def main():
-    print("school-calendar")
-    print("DB:", (BASE_DIR / "school_calendar.db").absolute())
+    init_db()
+    run_ui()
 
 
 if __name__ == "__main__":
