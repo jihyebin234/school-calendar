@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/schedules/{scheduleId} {
+      function ownsSchedule() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function validSchedule(data) {
+        return data.keys().hasAll([
+            'title', 'date', 'time', 'type', 'alert_time', 'repeat_type', 'description'
+          ])
+          && data.keys().hasOnly([
+            'title', 'date', 'time', 'type', 'alert_time', 'repeat_type', 'description'
+          ])
+          && data.title is string
+          && data.title.size() > 0
+          && data.title.size() <= 120
+          && data.date is string
+          && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && data.time is string
+          && data.time.matches('^[0-9]{2}:[0-9]{2}$')
+          && data.type is string
+          && data.type.size() <= 40
+          && data.alert_time in ['none', '1day', '3day', '1week']
+          && data.repeat_type in ['none', 'weekly', 'yearly']
+          && data.description is string
+          && data.description.size() <= 1000;
+      }
+
+      allow read, delete: if ownsSchedule();
+      allow create, update: if ownsSchedule() && validSchedule(request.resource.data);
+    }
+  }
+}
