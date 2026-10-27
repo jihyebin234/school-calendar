@@ -26,3 +26,7 @@ Vercel Project Settings → Environment Variables에 아래 변수를 등록한 
 Firebase Authentication의 승인된 도메인 목록에 배포된 `*.vercel.app` 도메인도 추가해야 합니다.
 
 Firebase 웹 설정 값은 클라이언트에서 쓰는 공개 설정입니다. 데이터 접근은 Firestore 보안 규칙으로 사용자별로 제한하세요. 서비스 계정 키나 Admin SDK 비밀 키는 웹 앱에 넣지 마세요.
+
+## 일정 장소 지도
+
+장소 지도는 Leaflet과 OpenStreetMap 타일을 사용합니다. 별도의 지도 API 키나 결제 설정은 필요하지 않습니다. 지도에서 직접 지점을 누르고 장소 이름은 입력란에 적으세요. 공개 타일 서버에는 무제한 사용 보장이 없으므로 출처 표시를 유지하고, 사용량이 커지면 별도 타일 제공자나 자체 호스팅을 사용하세요. 장소 자동완성/주소 검색은 공개 검색 API를 반복 호출하지 않도록 제공하지 않습니다.

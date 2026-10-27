@@ -11,7 +11,8 @@ service cloud.firestore {
             'title', 'date', 'time', 'type', 'alert_time', 'repeat_type', 'description'
           ])
           && data.keys().hasOnly([
-            'title', 'date', 'time', 'type', 'alert_time', 'repeat_type', 'description'
+            'title', 'date', 'time', 'type', 'alert_time', 'repeat_type', 'description',
+            'locationName', 'locationLat', 'locationLng'
           ])
           && data.title is string
           && data.title.size() > 0
@@ -25,7 +26,10 @@ service cloud.firestore {
           && data.alert_time in ['none', '1day', '3day', '1week']
           && data.repeat_type in ['none', 'weekly', 'yearly']
           && data.description is string
-          && data.description.size() <= 1000;
+          && data.description.size() <= 1000
+          && (!data.keys().hasAny(['locationName']) || (data.locationName is string && data.locationName.size() <= 120))
+          && (!data.keys().hasAny(['locationLat']) || data.locationLat == null || (data.locationLat is number && data.locationLat >= -90 && data.locationLat <= 90))
+          && (!data.keys().hasAny(['locationLng']) || data.locationLng == null || (data.locationLng is number && data.locationLng >= -180 && data.locationLng <= 180));
       }
 
       allow read, delete: if ownsSchedule();

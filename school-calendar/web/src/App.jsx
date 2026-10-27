@@ -8,14 +8,17 @@ import {
 } from 'firebase/auth'
 import {
   AlertCircle, ArrowLeft, ArrowRight, CalendarDays, Check, Clock3,
-  LogOut, Plus, Search, Trash2, X,
+  LogOut, MapPin, Plus, Search, Trash2, X,
 } from 'lucide-react'
 import { auth, db, firebaseReady } from './firebase'
+import LocationMap from './LocationMap'
 
 const EMPTY_FORM = {
   title: '', date: '', time: '09:00', type: '기타',
   alert_time: 'none', repeat_type: 'none', description: '',
+  locationName: '', locationLat: null, locationLng: null,
 }
+const DEFAULT_MAP_CENTER = [37.5665, 126.978]
 const TYPES = ['시험', '과제', '행사', '기타']
 const ALERTS = [
   ['none', '알림 없음'], ['1day', '하루 전'], ['3day', '3일 전'], ['1week', '일주일 전'],
@@ -116,6 +119,10 @@ function ScheduleDialog({ initial, onClose, onSave, onDelete }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const editing = Boolean(initial?.id)
+  const selectedLocation = Number.isFinite(form.locationLat) && Number.isFinite(form.locationLng)
+    ? [form.locationLat, form.locationLng]
+    : null
+  const mapCenter = selectedLocation || DEFAULT_MAP_CENTER
 
   function setField(name, value) {
     setForm(current => ({ ...current, [name]: value }))
@@ -151,6 +158,27 @@ function ScheduleDialog({ initial, onClose, onSave, onDelete }) {
           <label>알림<select value={form.alert_time} onChange={e => setField('alert_time', e.target.value)}>{ALERTS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           <label>반복<select value={form.repeat_type} onChange={e => setField('repeat_type', e.target.value)}>{REPEATS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           <label className="wide-field">메모<textarea rows="3" value={form.description} onChange={e => setField('description', e.target.value)} placeholder="준비물이나 참고할 내용을 적어두세요." /></label>
+          <div className="location-field wide-field">
+            <label htmlFor="schedule-location">장소</label>
+            <div className="location-input-row">
+              <input id="schedule-location" value={form.locationName || ''} onChange={e => setField('locationName', e.target.value)} placeholder="예: 과학관, 체육관" />
+              {selectedLocation && <button type="button" className="text-button" onClick={() => { setField('locationLat', null); setField('locationLng', null) }}>핀 지우기</button>}
+            </div>
+            <p className="location-help">지도를 눌러 위치를 표시하세요. 장소 이름은 직접 입력할 수 있어요.</p>
+            <LocationMap
+              center={mapCenter}
+              selected={selectedLocation}
+              onSelect={([latitude, longitude]) => {
+                setField('locationLat', latitude)
+                setField('locationLng', longitude)
+              }}
+            />
+            {selectedLocation && (
+              <a className="map-link" href={`https://www.openstreetmap.org/?mlat=${selectedLocation[0]}&mlon=${selectedLocation[1]}#map=16/${selectedLocation[0]}/${selectedLocation[1]}`} target="_blank" rel="noreferrer">
+                선택한 위치 보기 ({selectedLocation[0].toFixed(5)}, {selectedLocation[1].toFixed(5)})
+              </a>
+            )}
+          </div>
           {error && <p className="form-error wide-field">{error}</p>}
           <footer className="dialog-actions">
             {editing && <button type="button" className="danger-button" onClick={async () => { setBusy(true); try { await onDelete(form.id); onClose() } catch (deleteError) { setError(describeFirebaseError(deleteError)); setBusy(false) } }}><Trash2 size={15} />삭제</button>}
@@ -258,7 +286,7 @@ function Agenda({ user }) {
             if (!items.length) return null
             return <section className="day-section" key={dayKey}>
               <header className="day-heading"><div className="day-number">{day.getDate()}</div><div><strong>{new Intl.DateTimeFormat('ko-KR', { weekday: 'long', month: 'long', day: 'numeric' }).format(day)}</strong><span>{items.length}개 일정</span></div></header>
-              <div className="day-events">{items.map(item => <button className="event-card" key={item.id} onClick={() => setDialog(item)}><span className="event-time"><Clock3 size={14} />{item.time || '하루 종일'}</span><span className="event-color" /><span className="event-content"><strong>{item.title}</strong><span className="event-meta"><em>{item.type || '기타'}</em>{item.alert_time && item.alert_time !== 'none' && <em>{ALERTS.find(([value]) => value === item.alert_time)?.[1] || item.alert_time}</em>}{item.repeat_type && item.repeat_type !== 'none' && <em>{REPEATS.find(([value]) => value === item.repeat_type)?.[1] || item.repeat_type}</em>}</span>{item.description && <span className="event-note">{item.description}</span>}</span><ArrowRight className="event-arrow" size={16} /></button>)}</div>
+              <div className="day-events">{items.map(item => <button className="event-card" key={item.id} onClick={() => setDialog(item)}><span className="event-time"><Clock3 size={14} />{item.time || '하루 종일'}</span><span className="event-color" /><span className="event-content"><strong>{item.title}</strong><span className="event-meta"><em>{item.type || '기타'}</em>{item.alert_time && item.alert_time !== 'none' && <em>{ALERTS.find(([value]) => value === item.alert_time)?.[1] || item.alert_time}</em>}{item.repeat_type && item.repeat_type !== 'none' && <em>{REPEATS.find(([value]) => value === item.repeat_type)?.[1] || item.repeat_type}</em>}</span>{(item.locationName || (Number.isFinite(item.locationLat) && Number.isFinite(item.locationLng))) && <span className="event-location"><MapPin size={12} />{item.locationName || '지도에서 선택한 위치'}</span>}{item.description && <span className="event-note">{item.description}</span>}</span><ArrowRight className="event-arrow" size={16} /></button>)}</div>
             </section>
           })}
         </section>
