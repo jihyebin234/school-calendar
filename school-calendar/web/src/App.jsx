@@ -196,6 +196,7 @@ function Agenda({ user }) {
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [schedules, setSchedules] = useState([])
   const [search, setSearch] = useState('')
+  const [selectedType, setSelectedType] = useState('전체')
   const [dialog, setDialog] = useState(null)
   const [loading, setLoading] = useState(true)
   const [dataError, setDataError] = useState('')
@@ -216,10 +217,18 @@ function Agenda({ user }) {
     })
   }, [user.uid])
 
+  const isFiltering = selectedType !== '전체' || Boolean(search.trim())
   const visible = schedules
-    .filter(schedule => schedule.date >= start && schedule.date <= end)
+    .filter(schedule => isFiltering || (schedule.date >= start && schedule.date <= end))
+    .filter(schedule => selectedType === '전체' || (schedule.type || '기타') === selectedType)
     .filter(schedule => !search || schedule.title?.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
     .sort((a, b) => a.date.localeCompare(b.date) || (a.time || '00:00').localeCompare(b.time || '00:00'))
+  const groupedVisible = [...new Set(visible.map(item => item.date))].map(dayKey => ({
+    key: dayKey,
+    day: new Date(`${dayKey}T12:00:00`),
+    items: visible.filter(item => item.date === dayKey),
+  }))
+  const typeCounts = Object.fromEntries(TYPES.map(type => [type, schedules.filter(item => (item.type || '기타') === type).length]))
 
   async function saveSchedule(schedule) {
     const { id, ...data } = schedule
@@ -272,18 +281,18 @@ function Agenda({ user }) {
       </aside>
 
       <main className="agenda-page">
-        <header className="page-header"><div className="header-titles"><p className="eyebrow">WEEKLY AGENDA</p><h1>{weekLabel}</h1><p className="page-subtitle">이번 주 일정이 시간순으로 정리되어 있어요.</p></div><div className="header-actions"><button className="secondary-button today-button" onClick={() => setSelectedDate(new Date())}>오늘</button><button className="icon-button nav-button" onClick={() => moveWeek(-1)} aria-label="이전 주"><ArrowLeft size={17} /></button><button className="icon-button nav-button" onClick={() => moveWeek(1)} aria-label="다음 주"><ArrowRight size={17} /></button><button className="primary-button add-button" onClick={() => setDialog({ ...EMPTY_FORM, date: dateKey(selectedDate) })}><Plus size={17} />일정 등록</button></div></header>
-        <div className="week-strip">{week.map((day, index) => {
+        <header className="page-header"><div className="header-titles"><p className="eyebrow">{isFiltering ? 'SCHEDULE FINDER' : 'WEEKLY AGENDA'}</p><h1>{isFiltering ? (selectedType !== '전체' ? `${selectedType} 일정` : '일정 검색') : weekLabel}</h1><p className="page-subtitle">{isFiltering ? '선택한 조건에 맞는 일정을 날짜순으로 보여드려요.' : '이번 주 일정이 시간순으로 정리되어 있어요.'}</p></div><div className="header-actions"><button className="secondary-button today-button" onClick={() => { setSelectedDate(new Date()); setSelectedType('전체'); setSearch('') }}>이번 주</button><button className="icon-button nav-button" onClick={() => moveWeek(-1)} aria-label="이전 주"><ArrowLeft size={17} /></button><button className="icon-button nav-button" onClick={() => moveWeek(1)} aria-label="다음 주"><ArrowRight size={17} /></button><button className="primary-button add-button" onClick={() => setDialog({ ...EMPTY_FORM, date: dateKey(selectedDate) })}><Plus size={17} />일정 등록</button></div></header>
+        <nav className="type-filters" aria-label="일정 유형 필터">
+          {['전체', ...TYPES].map(type => <button key={type} type="button" className={`type-filter ${selectedType === type ? 'active' : ''}`} aria-pressed={selectedType === type} onClick={() => setSelectedType(type)}>{type}<span>{type === '전체' ? schedules.length : typeCounts[type]}</span></button>)}
+        </nav>
+        {!isFiltering && <div className="week-strip">{week.map((day, index) => {
           const today = dateKey(day) === dateKey(new Date())
           const chosen = dateKey(day) === dateKey(selectedDate)
           return <button key={dateKey(day)} className={`week-day ${today ? 'today' : ''} ${chosen ? 'chosen' : ''}`} onClick={() => setSelectedDate(day)}><span>{['월', '화', '수', '목', '금', '토', '일'][index]}</span><strong>{day.getDate()}</strong><i>{schedules.some(item => item.date === dateKey(day)) ? '•' : ''}</i></button>
-        })}</div>
+        })}</div>}
         {dataError && <div className="inline-error"><AlertCircle size={16} /> 일정을 불러오지 못했습니다. Firestore 규칙과 설정을 확인해 주세요. <span>{dataError}</span></div>}
         <section className="agenda-list" aria-live="polite">
-          {loading ? <div className="empty-state">일정을 불러오는 중…</div> : visible.length === 0 ? <div className="empty-state"><div className="empty-icon"><CalendarDays size={21} /></div><strong>{search ? '검색 결과가 없어요' : '이번 주는 비어 있어요'}</strong><span>{search ? '다른 제목으로 검색해 보세요.' : '일정을 등록해 한 주를 계획해 보세요.'}</span><button className="secondary-button" onClick={() => setDialog({ ...EMPTY_FORM, date: dateKey(selectedDate) })}><Plus size={15} />첫 일정 등록</button></div> : week.map(day => {
-            const dayKey = dateKey(day)
-            const items = visible.filter(item => item.date === dayKey)
-            if (!items.length) return null
+          {loading ? <div className="empty-state">일정을 불러오는 중…</div> : visible.length === 0 ? <div className="empty-state"><div className="empty-icon"><CalendarDays size={21} /></div><strong>{isFiltering ? '조건에 맞는 일정이 없어요' : '이번 주는 비어 있어요'}</strong><span>{isFiltering ? '다른 유형을 선택하거나 검색어를 바꿔 보세요.' : '일정을 등록해 한 주를 계획해 보세요.'}</span><button className="secondary-button" onClick={() => setDialog({ ...EMPTY_FORM, date: dateKey(selectedDate) })}><Plus size={15} />첫 일정 등록</button></div> : groupedVisible.map(({ key: dayKey, day, items }) => {
             return <section className="day-section" key={dayKey}>
               <header className="day-heading"><div className="day-number">{day.getDate()}</div><div><strong>{new Intl.DateTimeFormat('ko-KR', { weekday: 'long', month: 'long', day: 'numeric' }).format(day)}</strong><span>{items.length}개 일정</span></div></header>
               <div className="day-events">{items.map(item => <button className="event-card" key={item.id} onClick={() => setDialog(item)}><span className="event-time"><Clock3 size={14} />{item.time || '하루 종일'}</span><span className="event-color" /><span className="event-content"><strong>{item.title}</strong><span className="event-meta"><em>{item.type || '기타'}</em>{item.alert_time && item.alert_time !== 'none' && <em>{ALERTS.find(([value]) => value === item.alert_time)?.[1] || item.alert_time}</em>}{item.repeat_type && item.repeat_type !== 'none' && <em>{REPEATS.find(([value]) => value === item.repeat_type)?.[1] || item.repeat_type}</em>}</span>{(item.locationName || (Number.isFinite(item.locationLat) && Number.isFinite(item.locationLng))) && <span className="event-location"><MapPin size={12} />{item.locationName || '지도에서 선택한 위치'}</span>}{item.description && <span className="event-note">{item.description}</span>}</span><ArrowRight className="event-arrow" size={16} /></button>)}</div>
