@@ -7,7 +7,7 @@ import {
   sendPasswordResetEmail, signInWithEmailAndPassword, signOut,
 } from 'firebase/auth'
 import {
-  AlertCircle, ArrowLeft, ArrowRight, CalendarDays, Check, Clock3,
+  AlertCircle, ArrowLeft, ArrowRight, Bell, BellRing, CalendarDays, Check, Clock3,
   LogOut, MapPin, Plus, Search, Trash2, X,
 } from 'lucide-react'
 import { auth, db, firebaseReady } from './firebase'
@@ -26,6 +26,7 @@ const ALERTS = [
 const REPEATS = [
   ['none', '반복 없음'], ['weekly', '매주'], ['yearly', '매년'],
 ]
+const ALERT_LEAD_DAYS = { '1day': 1, '3day': 3, '1week': 7 }
 
 function dateKey(date) {
   return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-')
@@ -38,6 +39,37 @@ function getWeek(date) {
     const day = new Date(monday)
     day.setDate(monday.getDate() + index)
     return day
+  })
+}
+
+function getScheduleReminderDate(schedule) {
+  const leadDays = ALERT_LEAD_DAYS[schedule.alert_time]
+  if (!leadDays || !schedule.date) return null
+  const eventDate = new Date(`${schedule.date}T${schedule.time || '09:00'}:00`)
+  if (Number.isNaN(eventDate.getTime())) return null
+  eventDate.setDate(eventDate.getDate() - leadDays)
+  return eventDate
+}
+
+function notifyDueSchedules(userId, schedules) {
+  if (typeof window === 'undefined' || !('Notification' in window) || window.Notification.permission !== 'granted') return
+  const now = new Date()
+  schedules.forEach(schedule => {
+    const reminderDate = getScheduleReminderDate(schedule)
+    const eventDate = new Date(`${schedule.date}T${schedule.time || '09:00'}:00`)
+    if (!reminderDate || Number.isNaN(eventDate.getTime()) || eventDate <= now || reminderDate > now) return
+
+    const notificationKey = `school-calendar:reminder:${userId}:${schedule.id}:${reminderDate.getTime()}`
+    try {
+      if (window.localStorage.getItem(notificationKey)) return
+      new window.Notification(schedule.title || '학사 일정', {
+        body: `${schedule.alert_time === '1day' ? '하루' : schedule.alert_time === '3day' ? '3일' : '일주일'} 전 알림 · ${schedule.date} ${schedule.time || '09:00'}`,
+        tag: notificationKey,
+      })
+      window.localStorage.setItem(notificationKey, 'sent')
+    } catch {
+      // The browser can disable notifications or local storage independently.
+    }
   })
 }
 
@@ -225,6 +257,9 @@ function Agenda({ user }) {
   const [dialog, setDialog] = useState(null)
   const [loading, setLoading] = useState(true)
   const [dataError, setDataError] = useState('')
+  const [notificationPermission, setNotificationPermission] = useState(() =>
+    typeof window !== 'undefined' && 'Notification' in window ? window.Notification.permission : 'unsupported',
+  )
   const week = useMemo(() => getWeek(selectedDate), [selectedDate])
   const start = dateKey(week[0])
   const end = dateKey(week[6])
@@ -241,6 +276,24 @@ function Agenda({ user }) {
       setLoading(false)
     })
   }, [user.uid])
+
+  useEffect(() => {
+    if (notificationPermission !== 'granted') return undefined
+    const checkReminders = () => notifyDueSchedules(user.uid, schedules)
+    checkReminders()
+    const timer = window.setInterval(checkReminders, 30_000)
+    return () => window.clearInterval(timer)
+  }, [notificationPermission, schedules, user.uid])
+
+  async function enableNotifications() {
+    if (!('Notification' in window)) {
+      setNotificationPermission('unsupported')
+      return
+    }
+    const permission = await window.Notification.requestPermission()
+    setNotificationPermission(permission)
+    if (permission === 'granted') notifyDueSchedules(user.uid, schedules)
+  }
 
   const isFiltering = selectedType !== '전체' || Boolean(search.trim())
   const visible = schedules
@@ -307,6 +360,20 @@ function Agenda({ user }) {
 
       <main className="agenda-page">
         <header className="page-header"><div className="header-titles"><p className="eyebrow">{isFiltering ? 'SCHEDULE FINDER' : 'WEEKLY AGENDA'}</p><h1>{isFiltering ? (selectedType !== '전체' ? `${selectedType} 일정` : '일정 검색') : weekLabel}</h1><p className="page-subtitle">{isFiltering ? '선택한 조건에 맞는 일정을 날짜순으로 보여드려요.' : '이번 주 일정이 시간순으로 정리되어 있어요.'}</p></div><div className="header-actions"><button className="secondary-button today-button" onClick={() => { setSelectedDate(new Date()); setSelectedType('전체'); setSearch('') }}>이번 주</button><button className="icon-button nav-button" onClick={() => moveWeek(-1)} aria-label="이전 주"><ArrowLeft size={17} /></button><button className="icon-button nav-button" onClick={() => moveWeek(1)} aria-label="다음 주"><ArrowRight size={17} /></button><button className="primary-button add-button" onClick={() => setDialog({ ...EMPTY_FORM, date: dateKey(selectedDate) })}><Plus size={17} />일정 등록</button></div></header>
+        <section className="notification-banner" aria-live="polite">
+          <div className="notification-copy">
+            {notificationPermission === 'granted' ? <BellRing size={17} /> : <Bell size={17} />}
+            <div>
+              <strong>{notificationPermission === 'granted' ? '브라우저 알림이 켜져 있어요' : '일정 알림 받기'}</strong>
+              <p>{notificationPermission === 'unsupported'
+                ? '이 브라우저는 알림 기능을 지원하지 않습니다.'
+                : notificationPermission === 'denied'
+                  ? '브라우저 설정에서 이 사이트의 알림을 허용해 주세요.'
+                  : '앱 탭이 열려 있고 브라우저가 실행 중일 때 일정 알림을 확인합니다.'}</p>
+            </div>
+          </div>
+          {notificationPermission === 'default' && <button className="secondary-button" type="button" onClick={enableNotifications}>알림 허용</button>}
+        </section>
         <nav className="type-filters" aria-label="일정 유형 필터">
           {['전체', ...TYPES].map(type => <button key={type} type="button" className={`type-filter ${selectedType === type ? 'active' : ''}`} aria-pressed={selectedType === type} onClick={() => setSelectedType(type)}>{type}<span>{type === '전체' ? schedules.length : typeCounts[type]}</span></button>)}
         </nav>
