@@ -46,10 +46,23 @@ function describeFirebaseError(error) {
     'auth/email-already-in-use': '이미 가입된 이메일입니다.',
     'auth/invalid-credential': '이메일 또는 비밀번호를 확인해 주세요.',
     'auth/invalid-email': '이메일 형식이 올바르지 않습니다.',
-    'auth/weak-password': '비밀번호는 6자 이상 입력해 주세요.',
+    'auth/password-does-not-meet-requirements': '비밀번호는 8자 이상이며 숫자와 특수문자를 포함해야 합니다.',
+    'auth/weak-password': '비밀번호는 8자 이상이며 숫자와 특수문자를 포함해야 합니다.',
     'auth/too-many-requests': '요청이 잠시 제한됐습니다. 잠시 후 다시 시도해 주세요.',
   }
   return messages[error.code] || error.message || '요청을 처리하지 못했습니다.'
+}
+
+function hasPasswordSpecialCharacter(password) {
+  const specialCharacters = "^$*.[]{}()?\"!@#%&/\\,><':;|_~"
+  return [...password].some(character => specialCharacters.includes(character))
+}
+
+function validateRegistrationPassword(password) {
+  if (password.length < 8) return '비밀번호를 8자 이상 입력해 주세요.'
+  if (!/\d/.test(password)) return '비밀번호에 숫자를 하나 이상 포함해 주세요.'
+  if (!hasPasswordSpecialCharacter(password)) return '비밀번호에 특수문자를 하나 이상 포함해 주세요.'
+  return ''
 }
 
 function AuthPanel() {
@@ -62,6 +75,13 @@ function AuthPanel() {
 
   async function submit(event) {
     event.preventDefault()
+    if (mode === 'register') {
+      const passwordError = validateRegistrationPassword(password)
+      if (passwordError) {
+        setError(passwordError)
+        return
+      }
+    }
     setBusy(true)
     setError('')
     setNotice('')
@@ -98,7 +118,12 @@ function AuthPanel() {
         <p className="auth-copy">로그인하면 웹과 데스크톱에서 같은 일정을 볼 수 있어요.</p>
         <form onSubmit={submit} className="auth-form">
           <label>이메일<input type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" /></label>
-          <label>비밀번호<input type="password" autoComplete={mode === 'register' ? 'new-password' : 'current-password'} minLength="6" required value={password} onChange={e => setPassword(e.target.value)} placeholder="6자 이상" /></label>
+          <label>비밀번호<input type="password" autoComplete={mode === 'register' ? 'new-password' : 'current-password'} minLength={mode === 'register' ? 8 : undefined} required value={password} onChange={e => setPassword(e.target.value)} placeholder={mode === 'register' ? '8자 이상, 숫자와 특수문자 포함' : '비밀번호'} /></label>
+          {mode === 'register' && <ul className="password-rules" aria-live="polite">
+            <li className={password.length >= 8 ? 'rule-met' : ''}>8자 이상</li>
+            <li className={/\d/.test(password) ? 'rule-met' : ''}>숫자 포함</li>
+            <li className={hasPasswordSpecialCharacter(password) ? 'rule-met' : ''}>특수문자 포함</li>
+          </ul>}
           {error && <p className="form-error">{error}</p>}
           {notice && <p className="form-notice">{notice}</p>}
           <button className="primary-button full-button" disabled={busy}>{busy ? '처리 중…' : mode === 'register' ? '계정 만들기' : '로그인'}</button>
